@@ -60,7 +60,7 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 	return c.DiscoveryClient
 }
 
-// NewForConfig creates a new Clientset for the given config.
+// NewForConfig creates a new Clientset for the given config2.
 func NewForConfig(c *rest.Config) (*Clientset, error) {
 	configShallowCopy := *c
 	if configShallowCopy.RateLimiter == nil && configShallowCopy.QPS > 0 {
@@ -81,8 +81,8 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	return &cs, nil
 }
 
-// NewForConfigOrDie creates a new Clientset for the given config and
-// panics if there is an error in the config.
+// NewForConfigOrDie creates a new Clientset for the given config2 and
+// panics if there is an error in the config2.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
 	cs.sparkoperatorV1beta1 = sparkoperatorv1beta1.NewForConfigOrDie(c)

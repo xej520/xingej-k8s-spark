@@ -40,7 +40,7 @@ func (c *SparkoperatorV1beta1Client) SparkApplications(namespace string) SparkAp
 	return newSparkApplications(c, namespace)
 }
 
-// NewForConfig creates a new SparkoperatorV1beta1Client for the given config.
+// NewForConfig creates a new SparkoperatorV1beta1Client for the given config2.
 func NewForConfig(c *rest.Config) (*SparkoperatorV1beta1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
@@ -53,8 +53,8 @@ func NewForConfig(c *rest.Config) (*SparkoperatorV1beta1Client, error) {
 	return &SparkoperatorV1beta1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new SparkoperatorV1beta1Client for the given config and
-// panics if there is an error in the config.
+// NewForConfigOrDie creates a new SparkoperatorV1beta1Client for the given config2 and
+// panics if there is an error in the config2.
 func NewForConfigOrDie(c *rest.Config) *SparkoperatorV1beta1Client {
 	client, err := NewForConfig(c)
 	if err != nil {

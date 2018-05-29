@@ -1,0 +1,20 @@
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: E:\Program\go2\goPath\src\k8s.io\gongsi-k8s-config\ca.pem
+    server: https://172.16.91.210:6443
+  name: kubernetes
+contexts:
+- context:
+    cluster: kubernetes
+    user: cluster-admin
+  name: default
+current-context: default
+kind: Config
+preferences: {}
+users:
+- name: cluster-admin
+  user:
+    as-user-extra: {}
+    client-certificate: E:\Program\go2\goPath\src\k8s.io\gongsi-k8s-config\admin.pem
+    client-key: E:\Program\go2\goPath\src\k8s.io\gongsi-k8s-config\admin-key.pem
