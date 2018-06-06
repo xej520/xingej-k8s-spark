@@ -36,7 +36,7 @@ func GetCRDObject() *apiextensionsv1beta1.CustomResourceDefinition {
 				ShortNames: []string{ShortName},
 				Kind:       reflect.TypeOf(v1beta1.SparkApplication{}).Name(),
 			},
-
+			Validation: getCustomResourceValidation(),
 		},
 	}
 

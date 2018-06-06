@@ -5,8 +5,10 @@ import (
 	"k8s.io/client-go/kubernetes"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	"k8s.io/client-go/rest"
 	"fmt"
+	"k8s.io/client-go/rest"
+	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-app/pkg/client/clientset/versioned"
+	"log"
 )
 
 // 通过配置文件，其实，也就是来获当前环境的上下文
@@ -72,3 +74,11 @@ func RegisterCRD(
 }
 
 
+// MustNewCodisExtClient new mysql cluster client
+func MustNewSparkExtClient(endpoint , configPath string) versioned.Interface {
+	cfg, err := ClusterConfig(endpoint , configPath)
+	if err != nil {
+		log.Panic(err)
+	}
+	return versioned.NewForConfigOrDie(cfg)
+}
