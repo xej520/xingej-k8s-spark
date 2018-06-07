@@ -281,9 +281,6 @@ func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename st
 		return nil, err
 	}
 
-
-
-
 	return nil, nil
 }
 
