@@ -79,14 +79,21 @@ func DeleteServices(cluster *api.SparkCluster, status *api.ClusterStatus, nodena
 
 // 卸载节点
 func Uninstall(cluster *api.SparkCluster, status *api.ClusterStatus, nodename string) error {
-	// 删除service
-	if err := k8sutil.DeleteServices(cluster.Namespace, nodename); err != nil {
-		if !errors.IsNotFound(err) {
-			AddConditions(status, api.ClusterConditionReady,
-				v1.ConditionFalse, err.Error(),
-				fmt.Sprintf("Delete spark cluster %q service  error", nodename))
-			return err
+
+	if  server, ok := status.ServerNodes[nodename]; ok {
+
+		if server.Role == api.SparkRoleMaster {
+			// 删除service
+			if err := k8sutil.DeleteServices(cluster.Namespace, nodename); err != nil {
+				if !errors.IsNotFound(err) {
+					AddConditions(status, api.ClusterConditionReady,
+						v1.ConditionFalse, err.Error(),
+						fmt.Sprintf("Delete spark cluster %q service  error", nodename))
+					return err
+				}
+			}
 		}
+
 	}
 
 	// 删除pod

@@ -21,11 +21,11 @@ func NewUpdateStatus(cluster *v1beta1.SparkCluster,
 	flag bool) *Updatestatus {
 
 	return &Updatestatus{
-		Cluster:cluster,
-		Status:status,
-		NodeName:nodeName,
-		NodeStatus:nodeStatus,
-		Flag:flag,
+		Cluster:    cluster,
+		Status:     status,
+		NodeName:   nodeName,
+		NodeStatus: nodeStatus,
+		Flag:       flag,
 	}
 
 }

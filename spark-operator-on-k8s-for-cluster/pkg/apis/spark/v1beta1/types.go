@@ -154,7 +154,7 @@ type Server struct {
 	Configmapname string      `json:"configmapname,omitempty"`
 	Address       string      `json:"address,omitempty"`
 	Node          string      `json:"nodeName,omitempty"`
-	ServerStatus  v1.PodPhase `json:"status,omitempty"`
+	Status  v1.PodPhase `json:"status,omitempty"`
 
 	DownTime int64 `json:"downTime,omitempty"`
 
