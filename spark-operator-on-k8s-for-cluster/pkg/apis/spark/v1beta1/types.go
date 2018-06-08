@@ -3,6 +3,7 @@ package v1beta1
 import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"fmt"
 )
 
 type ClusterPhase string
@@ -29,6 +30,7 @@ const (
 	ServerPending   v1.PodPhase = "Pending"
 	ServerUnknown   v1.PodPhase = "Unknown"
 	ServerSucceeded v1.PodPhase = "Succeeded"
+	ServerDeleted   v1.PodPhase = "Deleted"
 
 	NodeOperatorPhaseStop   OperatorPhase = "NodeStop"
 	NodeOperatorPhaseStart  OperatorPhase = "NodeStart"
@@ -179,4 +181,8 @@ type ClusterCondition struct {
 	// A human readable message indicating details about the transition.
 	Message string `json:"message,omitempty"`
 
+}
+// GetKey get namespace/name
+func (c *SparkCluster) GetKey() string {
+	return fmt.Sprintf("%s/%s", c.Namespace, c.Name)
 }

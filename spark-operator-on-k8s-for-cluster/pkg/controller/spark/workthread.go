@@ -11,14 +11,24 @@ import (
 	status2 "xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/service/status"
 )
 
-// 线程---创建单节点
-func CreateNodeForCluster(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) {
+type workthread interface {
+	do( rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool
+}
+
+type createNodeThread struct {}
+
+type stopNodeThread struct {}
+
+type startNodeThread struct {}
+
+type deleteNodeThread struct {}
+
+func handle(wd workthread, rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server)  {
 	//每次间隔一秒钟，最多尝试5次
 	for i := 0; i < 5; i++ {
-		if doCreateNodeForCluster(rpc, cluster, status, serv) {
+		if wd.do(rpc, cluster, status, serv) {
 			//	成功后，需要给状态管道 发送消息
-			updateStatus := status2.NewUpdateStatus(
-				cluster, status, serv.Name, "", true)
+			updateStatus := status2.NewUpdateStatus(cluster, status, serv.Name, "", true)
 
 			rpc.SendMsg2StatusChan(updateStatus)
 
@@ -35,11 +45,10 @@ func CreateNodeForCluster(rpc *RealPodControl, cluster *api.SparkCluster, status
 	updateStatus := status2.NewUpdateStatus(cluster, status, serv.Name, v1.PodFailed, false)
 
 	rpc.SendMsg2StatusChan(updateStatus)
-
 }
 
-func doCreateNodeForCluster(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool {
-
+// 线程---创建单节点
+func (c * createNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool {
 	//创建单节点configMap
 	if _, err := rpc.ConfigMapControl.GetForOne(cluster, serv); err != nil {
 		if err = rpc.ConfigMapControl.CreateForOne(cluster, status, serv); err != nil {
@@ -107,5 +116,68 @@ func doCreateNodeForCluster(rpc *RealPodControl, cluster *api.SparkCluster, stat
 
 	return true
 }
+
+func (c * stopNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool {
+	//停止单节点服务
+	if serv.Status == api.ServerWaiting {
+		//删除单节点pod
+
+		if err := podfunc.Stoppod(cluster, status, serv.Name); err != nil {
+			log.WarnErrorf(err, "Stop spark node pod %q error ", serv.Name)
+			return false
+		}
+		log.Infof("Stop spark node pod %q succeeded", serv.Name)
+	}
+
+	return true
+}
+
+func (c * startNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool {
+	//启动单节点服务
+	if serv.Status == api.ServerWaiting {
+		//启动单节点pod
+		if pod, err := rpc.PodLister.Pods(cluster.Namespace).Get(serv.Name); err != nil {
+			if _, err := podfunc.CreatePod(cluster, status, serv.Name); err != nil {
+				if !errors.IsAlreadyExists(err) {
+					podfunc.AddConditions(status, api.ClusterConditionReady,
+						v1.ConditionFalse, err.Error(),
+						fmt.Sprintf("Start spark node pod %q error", serv.Name))
+					log.WarnErrorf(err, "Start spark node pod %q error", serv.Name)
+					return false
+				}
+			}
+			log.Infof("Start spark server node %q succeeded", serv.Name)
+		} else {
+			serv.Status = pod.Status.Phase
+		}
+	}
+
+	return true
+}
+
+func (c * deleteNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server)  bool {
+
+	//删除单节点服务
+	if serv.Status == api.ServerWaiting {
+		// 调用k8s接口，删除server， pod，(在停止状态pod已经删除了，不需要删除pod)
+		if err := podfunc.Uninstall(cluster, status, serv.Name); err != nil {
+			log.WarnErrorf(err, "delete spark node pod and svc %s%s failed", cluster.Namespace, serv.Name)
+			return false
+		}
+
+		// 调用k8s接口，删除configMap
+		if err := rpc.ConfigMapControl.DeleteForOne(cluster, serv); err != nil {
+			log.WarnErrorf(err, "delete spark node configmap %s%s failed", cluster.Namespace, serv.Name)
+			return false
+		}
+
+		log.Infof("Stop spark node pod %q succeeded", serv.Name)
+	}
+
+	return true
+}
+
+
+
 
 
