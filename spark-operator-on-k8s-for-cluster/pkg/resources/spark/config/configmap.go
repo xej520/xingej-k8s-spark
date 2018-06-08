@@ -7,10 +7,19 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/resources"
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/apis/spark"
+	"fmt"
 )
 
 type Config struct {
 	ConfigMap *v1.ConfigMap
+}
+
+func NewForCluster(clus *v1beta1.SparkCluster, server *v1beta1.Server) *Config {
+	config := &Config{}
+
+	config.ConfigMap = NewConfigMap(clus, server)
+
+	return config
 }
 
 func NewConfigMap(clus *v1beta1.SparkCluster, server *v1beta1.Server) *v1.ConfigMap {
@@ -41,3 +50,8 @@ func NewConfigMap(clus *v1beta1.SparkCluster, server *v1beta1.Server) *v1.Config
 
 	return configMap
 }
+
+func GetConfigMapName(clusterName string, role string, serverId string) string {
+	return fmt.Sprintf("spark-config-%s-%s-%s", clusterName, role, serverId)
+}
+
