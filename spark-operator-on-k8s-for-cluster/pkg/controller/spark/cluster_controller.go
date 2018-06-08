@@ -26,6 +26,7 @@ func NewClusterUpdater(client sparkOp.Interface, lister listers.SparkClusterList
 func (csu *clusterUpdate) UpdateClusterStatus(cluster *v1beta1.SparkCluster, status *v1beta1.ClusterStatus) error {
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		//1、先从etcd获取最新的对象
 		updated, err := csu.lister.SparkClusters(cluster.Namespace).Get(cluster.Name)
 		if err != nil {
 			log.ErrorErrorf(err, "Error getting updated KafkaCluster %s/%s", cluster.Namespace, cluster.Name)
@@ -33,8 +34,10 @@ func (csu *clusterUpdate) UpdateClusterStatus(cluster *v1beta1.SparkCluster, sta
 		}
 
 		// Copy the KafkaCluster so we don't mutate the cache.
+		// 2、copy一份
 		cluster = updated.DeepCopy()
 		cluster.Status = *status
+		// 3、再更新到etcd里
 		_, updateErr := csu.client.SparkV1beta1().SparkClusters(cluster.Namespace).Update(cluster)
 		if updateErr == nil {
 			return nil
