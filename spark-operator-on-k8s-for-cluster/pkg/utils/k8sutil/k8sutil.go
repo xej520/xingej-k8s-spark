@@ -22,8 +22,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"bonc.com/kafka-operator/pkg/generated/clientset/versioned"
-	"bonc.com/kafka-operator/pkg/utils/constants"
+	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/utils/constants"
+	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/client/clientset/versioned"
 )
 
 const (
@@ -79,7 +79,7 @@ func MustNewKubeClient() kubernetes.Interface {
 }
 
 // MustNewCodisExtClient new kafka cluster client
-func MustNewKafkaExtClient() versioned.Interface {
+func MustNewSparkExtClient() versioned.Interface {
 	cfg, err := ClusterConfig()
 	if err != nil {
 		log.Panic(err)

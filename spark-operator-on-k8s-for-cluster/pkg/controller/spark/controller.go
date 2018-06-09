@@ -14,7 +14,7 @@ import (
 	"time"
 	kubeinformers "k8s.io/client-go/informers"
 	informers "xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/client/informers/externalversions"
-	"github.com/prometheus/common/log"
+	"github.com/CodisLabs/codis/pkg/utils/log"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/api/core/v1"
@@ -401,3 +401,39 @@ func handleForExceptionPod(c *Controller, curPod *v1.Pod, sparkC *api.SparkClust
 
 	}
 }
+
+// Run will set up the event handlers for types we are interested in, as well
+// as syncing informer caches and starting workers. It will block until stopCh
+// is closed, at which point it will shutdown the workqueue and wait for
+// workers to finish processing their current work items.
+func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
+
+	// Start the informer factories to begin populating the informer caches
+	log.Info("Starting sparkcluster controller")
+	defer log.Info("Shutting down sparkcluster controller")
+
+	// ensure sparkCluster crd initialized
+	if err := c.ensureResource(); err != nil {
+		log.ErrorErrorf(err, "Ensure %s resource error", spark.CrdKind)
+		return err
+	}
+
+	// Wait for the caches to be synced before starting workers
+	log.Info("Waiting for informer caches to sync")
+	if ok := cache.WaitForCacheSync(stopCh, c.sparkListerSynced, c.podListerSynced); !ok {
+		return fmt.Errorf("failed to wait for caches to sync")
+	}
+
+	defer func() {
+		log.Info("Shuttingdown controller queue")
+		c.workqueue.ShutDown()
+	}()
+
+	log.Info("Starting sparkcluster sync workers")
+	c.workqueue.Run(threadiness)
+	log.Info("Started sparkcluster sync workers")
+
+	<-stopCh
+	return nil
+}
+
