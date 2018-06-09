@@ -4,6 +4,7 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"fmt"
+	utilrand "k8s.io/apimachinery/pkg/util/rand"
 )
 
 type ClusterPhase string
@@ -110,7 +111,7 @@ type ClusterStatus struct {
 	// Represents the latest available observations of a cluster object's current state.
 	Conditions                         []*ClusterCondition `json:"conditions,omitempty"`
 	Reason                             string              `json:"reason,omitempty"`
-	WaitKafkaComponentAvailableTimeout int                 `json:"waitkafkatimeout,omitempty"`
+	WaitSparkComponentAvailableTimeout int                 `json:"waitsparktimeout,omitempty"`
 }
 
 type Spec struct {
@@ -186,3 +187,60 @@ type ClusterCondition struct {
 func (c *SparkCluster) GetKey() string {
 	return fmt.Sprintf("%s/%s", c.Namespace, c.Name)
 }
+
+func (c *SparkCluster) SetDefaults()  {
+	e := &c.Spec
+	if len(e.Version) == 0 {
+		e.Version = DefaultSparkVersion
+	}
+
+	if c.Status.WaitKafkaComponentAvailableTimeout == 0 {
+		c.Status.WaitKafkaComponentAvailableTimeout = 240
+	}
+	if c.Status.ServerNodes == nil {
+		c.Status.ServerNodes = make(map[string]*Server)
+		for i := 0; i < c.Spec.Replicas; {
+			// 初始化名字
+			serverID := utilrand.String(5)
+			name := fmt.Sprintf("spark-%s-%s-%s", c.Name, SparkRoleMaster, serverID)
+			svcname := fmt.Sprintf("spark-%s-%s-%s", c.Name, SparkRoleMaster, serverID)
+			configmapname := fmt.Sprintf("spark-config-%s-%s-%s", c.Name, SparkRoleMaster, serverID)
+			volumeid := fmt.Sprintf("spark-%s-%s-%s-%v", c.Namespace, c.Name, SparkRoleMaster, serverID)
+			role := SparkRoleMaster
+			yes := true
+			for _, servernode := range c.Status.ServerNodes {
+				if serverID == servernode.ID {
+					yes = false
+					break
+				}
+			}
+			if yes {
+				c.Status.ServerNodes[name] = &Server{ID: serverID, Name: name, Svcname: svcname, Configmapname: configmapname,
+					VolumeID: volumeid, Role: role, Status: ServerWaiting, RestartAction: RestartActionNo,
+				}
+				i++
+			}
+		}
+	}
+
+	c.Status.ClusterPhase = ClusterPhaseWaiting
+
+	if len(c.Namespace) == 0 {
+		c.Namespace = "default"
+	}
+	if e.HealthCheck {
+		if e.Config.LivenessDelayTimeout <= 0 {
+			e.Config.LivenessDelayTimeout = 30
+		}
+		if e.Config.LivenessFailureThreshold <= 0 {
+			e.Config.LivenessFailureThreshold = 10
+		}
+		if e.Config.ReadinessDelayTimeout <= 0 {
+			e.Config.ReadinessDelayTimeout = 30
+		}
+		if e.Config.ReadinessFailureThreshold <= 0 {
+			e.Config.ReadinessFailureThreshold = 10
+		}
+	}
+}
+

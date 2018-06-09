@@ -28,7 +28,7 @@ type podControlInterface interface {
 	StartForNode(cluster *api.SparkCluster, status *api.ClusterStatus) (error)
 	DeleteForNode(cluster *api.SparkCluster, status *api.ClusterStatus) (error)
 	ChangeClusterstate(cluster *api.SparkCluster, status *api.ClusterStatus) (error)
-	ListenStatus(c *Controller, threadiness int) (error)
+	ListenStatus(c *Controller, threadiness int)
 	SendMsg2StatusChan(*status.Updatestatus)
 }
 
@@ -45,16 +45,16 @@ type RealPodControl struct {
 	UpdateStatusChannel chan *status.Updatestatus
 }
 
-//func NewRealPodControl(client kubernetes.Interface, sparkclient sparkop.Interface,
-//	podLister corelisters.PodLister, serviceLister corelisters.ServiceLister, clusterUpdater clusterUpdateInterface, configMapControl ConfigMapControlInterface) podControlInterface {
-//
-//		return &RealPodControl{kubeclient: client, sparkClient: sparkclient, PodLister: podLister,
-//			ServiceLister: serviceLister, ClusterUpdater: clusterUpdater,
-//			ConfigMapControl: configMapControl,
-//			// 默认值是10个缓存
-//			UpdateStatusChannel: make(chan *status.Updatestatus, 10),
-//}
+func NewRealPodControl(client kubernetes.Interface, sparkclient sparkop.Interface,
+	podLister corelisters.PodLister, serviceLister corelisters.ServiceLister, clusterUpdater clusterUpdateInterface, configMapControl ConfigMapControlInterface) podControlInterface {
 
+	return &RealPodControl{kubeclient: client, sparkClient: sparkclient, PodLister: podLister,
+		ServiceLister: serviceLister, ClusterUpdater: clusterUpdater,
+		ConfigMapControl: configMapControl,
+		// 默认值是10个缓存
+		UpdateStatusChannel: make(chan *status.Updatestatus, 10),
+	}
+}
 
 func (rpc *RealPodControl) CreateForCluster(cluster *api.SparkCluster, status *api.ClusterStatus) (error) {
 	//1. 更新集群信息到etcd
@@ -278,7 +278,7 @@ func (rpc *RealPodControl) ChangeClusterstate(cluster *api.SparkCluster, status 
 	return nil
 }
 
-func (rpc *RealPodControl) ListenStatus(c *Controller, threadiness int) (error) {
+func (rpc *RealPodControl) ListenStatus(c *Controller, threadiness int)  {
 	for {
 		// 不断的从管道中取值
 		updateStatus := <-rpc.UpdateStatusChannel
