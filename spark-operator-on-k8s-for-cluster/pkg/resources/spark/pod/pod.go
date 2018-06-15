@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"encoding/json"
+	"strings"
 )
 
 var (
@@ -205,7 +206,7 @@ func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename st
 					ImagePullPolicy: v1.PullIfNotPresent,
 					Ports:           []v1.ContainerPort{{ContainerPort: 7077}},
 					VolumeMounts: []v1.VolumeMount{
-						{Name: "configdir", MountPath: "/usr/local/spark/conf/"},
+						{Name: "configdir", MountPath: "/usr/local/spark/conf/spark-env.sh",SubPath: "spark-env.sh"},
 						{Name: volumeid, MountPath: "/usr/local/spark/logs"},
 					},
 					Resources: v1.ResourceRequirements{
@@ -369,6 +370,11 @@ func GetTerminationGracePeriodSeconds() *int64 {
 }
 
 func mkEnv(server *api.Server) []v1.EnvVar {
+	master := server.Name
+
+	if strings.Contains(master, "slave") {
+		master = strings.Replace(master,"slave", "master", 1)
+	}
 
 	podEnvs := []v1.EnvVar{
 		//角色，根据角色来启动master进程，或者slave进程
@@ -376,7 +382,7 @@ func mkEnv(server *api.Server) []v1.EnvVar {
 			Name: "ROLE", Value: string(server.Role),
 		},
 		{
-			Name: "MASTER", Value: server.Name,
+			Name: "MASTER", Value: master,
 		},
 	}
 
