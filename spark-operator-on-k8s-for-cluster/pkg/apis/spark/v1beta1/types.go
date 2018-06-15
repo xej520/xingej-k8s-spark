@@ -207,6 +207,8 @@ func (c *SparkCluster) SetDefaults()  {
 			// 设置i=0时，为master角色，其他都是slave角色
 			if i == 0 {
 				role = SparkRoleMaster
+			}else {
+				role = SparkRoleSlave
 			}
 
 			name := fmt.Sprintf("spark-%s-%s-%s", c.Name, role, serverID)
