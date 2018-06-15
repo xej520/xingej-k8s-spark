@@ -9,6 +9,7 @@ import (
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/apis/spark"
 	"fmt"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"strings"
 )
 
 type Config struct {
@@ -27,7 +28,7 @@ func NewConfigMap(clus *v1beta1.SparkCluster, server *v1beta1.Server) *v1.Config
 	//	初始化配置
 	data := map[string]string{}
 	log.Infof("newSparkcnf:")
-	data["spark-env.sh"] = fmt.Sprintf("spark-%s-%s-%s", clus.Namespace, clus.Name, server.Name)
+	data["spark-env.sh"] = MergeConfig(clus.Spec.Config.Sparkcnf, server.Svcname)
 
 	configMap := &v1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
@@ -55,4 +56,24 @@ func NewConfigMap(clus *v1beta1.SparkCluster, server *v1beta1.Server) *v1.Config
 
 func GetConfigMapName(clusterName string, role string, serverId string) string {
 	return fmt.Sprintf("spark-config-%s-%s-%s", clusterName, role, serverId)
+}
+
+func MergeConfig(parameters map[string]string, svcName string) string  {
+	var sparkEnvParams  []string
+
+	for k, v := range parameters {
+		sparkEnvParams = append(sparkEnvParams, fmt.Sprintf("export %s=%s\n", k, v))
+	}
+
+	if strings.Contains(svcName, "slave") {
+		svcName = strings.Replace(svcName,"slave", "master", 1)
+	}
+
+   sparkEnvParams = append(sparkEnvParams, fmt.Sprintf("export %s=%s\n", "SPARK_MASTER_HOST", svcName))
+
+	sparkEnv := strings.Join(sparkEnvParams, "")
+
+	log.Info("-------------->:\n", sparkEnv)
+
+	return sparkEnv
 }
