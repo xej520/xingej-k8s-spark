@@ -28,7 +28,7 @@ import (
 
 const (
 	kubePublicNamespace        = "kube-public"
-	kafkaVersionAnnotationsKey = "kafka.version"
+	sparkVersionAnnotationsKey = "spark.version"
 )
 
 var convert = conver.NewConverter(conver.DefaultNameFunc)
@@ -55,7 +55,7 @@ func init() {
 	}
 	MasterHost = os.Getenv(constants.EnvK8sMasterHost)
 	Kubeconfig = os.Getenv(constants.EnvK8sKubeConfig)
-	log.Infof("kafka-operator current namespace is %s", OperatorNamespace)
+	log.Infof("spark-operator current namespace is %s", OperatorNamespace)
 }
 
 // MustInit init k8s
@@ -65,7 +65,7 @@ func MustInit() {
 	}
 	kubecli = MustNewKubeClient()
 	if err := createNamespace(OperatorNamespace); err != nil && !IsKubernetesResourceAlreadyExistError(err) {
-		log.PanicErrorf(err, "Init kafka-operator k8s namespace %s", OperatorNamespace)
+		log.PanicErrorf(err, "Init spark-operator k8s namespace %s", OperatorNamespace)
 	}
 }
 
@@ -76,15 +76,6 @@ func MustNewKubeClient() kubernetes.Interface {
 		log.Panic(err)
 	}
 	return kubernetes.NewForConfigOrDie(cfg)
-}
-
-// MustNewCodisExtClient new kafka cluster client
-func MustNewSparkExtClient() versioned.Interface {
-	cfg, err := ClusterConfig()
-	if err != nil {
-		log.Panic(err)
-	}
-	return versioned.NewForConfigOrDie(cfg)
 }
 
 // ClusterConfig get k8s cluster config
@@ -193,6 +184,15 @@ func GetNodesExternalIP(selector map[string]string) ([]string, error) {
 	return ips, nil
 }
 
+// MustNewCodisExtClient new kafka cluster client
+func MustNewSparkExtClient() versioned.Interface {
+	cfg, err := ClusterConfig()
+	if err != nil {
+		log.Panic(err)
+	}
+	return versioned.NewForConfigOrDie(cfg)
+}
+
 // GetK8sEtcdIP get k8s etcd ip
 func GetK8sEtcdIP() (string, error) {
 	ls := map[string]string{
@@ -209,43 +209,43 @@ func GetK8sEtcdIP() (string, error) {
 	return pods[0].Status.PodIP, nil
 }
 
-// GetCodisVersion get codis version
-func GetCodisVersion(i interface{}) string {
+// GetSparkVersion get spark version
+func GetSparkVersion(i interface{}) string {
 	switch v := i.(type) {
 	case *v1.Pod:
-		return v.Annotations[kafkaVersionAnnotationsKey]
+		return v.Annotations[sparkVersionAnnotationsKey]
 	case *v1.ReplicationController:
-		return v.Annotations[kafkaVersionAnnotationsKey]
+		return v.Annotations[sparkVersionAnnotationsKey]
 	case *appv1.StatefulSet:
-		return v.Annotations[kafkaVersionAnnotationsKey]
+		return v.Annotations[sparkVersionAnnotationsKey]
 	}
 	return ""
 }
 
-// SetKafkaVersion set kafka version
-func SetKafkaVersion(i interface{}, version string) {
+// SetSparkVersion set spark version
+func SetSparkVersion(i interface{}, version string) {
 	switch v := i.(type) {
 	case *v1.Pod:
 		if len(v.Annotations) < 1 {
 			v.Annotations = make(map[string]string)
 		}
-		v.Annotations[kafkaVersionAnnotationsKey] = version
+		v.Annotations[sparkVersionAnnotationsKey] = version
 	case *v1.ReplicationController:
 		if len(v.Annotations) < 1 {
 			v.Annotations = make(map[string]string)
 		}
-		v.Annotations[kafkaVersionAnnotationsKey] = version
+		v.Annotations[sparkVersionAnnotationsKey] = version
 
 		if len(v.Spec.Template.Annotations) < 1 {
 			v.Spec.Template.Annotations = make(map[string]string)
 		}
-		v.Spec.Template.Annotations[kafkaVersionAnnotationsKey] = version
+		v.Spec.Template.Annotations[sparkVersionAnnotationsKey] = version
 	case *appv1.StatefulSet:
 		if len(v.Annotations) < 1 {
 			v.Annotations = make(map[string]string)
 		}
-		v.Annotations[kafkaVersionAnnotationsKey] = version
-		v.Spec.Template.Annotations[kafkaVersionAnnotationsKey] = version
+		v.Annotations[sparkVersionAnnotationsKey] = version
+		v.Spec.Template.Annotations[sparkVersionAnnotationsKey] = version
 	}
 }
 

@@ -191,6 +191,9 @@ func (sq *SyncQueue) worker() {
 // ProcessNextWorkItem processes next item in queue by syncHandler
 func (sq *SyncQueue) processNextWorkItem() bool {
 	obj, quit := sq.queue.Get()
+
+	fmt.Println("----已经从队列中获取到了任务-----")
+
 	if quit {
 		return false
 	}

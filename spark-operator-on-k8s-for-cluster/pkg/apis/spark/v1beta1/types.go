@@ -87,7 +87,7 @@ type SparkClusterList struct {
 type ClusterSpec struct {
 	Spec `json:",inline"`
 
-	SparkOperator `json:",inline"`
+	SparkOperator `json:"sparkoperator"`
 
 	Version string       `json:"version"`
 	Image   string       `json:"image,omitempty"`
@@ -128,7 +128,7 @@ type SparkOperator struct {
 }
 
 type SparkConfig struct {
-	Sparkcnf                  map[string]string `json:"kafkacnf,omitempty"`
+	Sparkcnf                  map[string]string `json:"sparkcnf,omitempty"`
 	LivenessDelayTimeout      int               `json:"livenessDelayTimeout,omitempty"`
 	ReadinessDelayTimeout     int               `json:"readinessDelayTimeout,omitempty"`
 	LivenessFailureThreshold  int               `json:"livenessFailureThreshold,omitempty"`
@@ -194,19 +194,26 @@ func (c *SparkCluster) SetDefaults()  {
 		e.Version = DefaultSparkVersion
 	}
 
-	if c.Status.WaitKafkaComponentAvailableTimeout == 0 {
-		c.Status.WaitKafkaComponentAvailableTimeout = 240
+	if c.Status.WaitSparkComponentAvailableTimeout == 0 {
+		c.Status.WaitSparkComponentAvailableTimeout = 240
 	}
 	if c.Status.ServerNodes == nil {
 		c.Status.ServerNodes = make(map[string]*Server)
+		role := SparkRoleSlave
 		for i := 0; i < c.Spec.Replicas; {
 			// 初始化名字
 			serverID := utilrand.String(5)
-			name := fmt.Sprintf("spark-%s-%s-%s", c.Name, SparkRoleMaster, serverID)
-			svcname := fmt.Sprintf("spark-%s-%s-%s", c.Name, SparkRoleMaster, serverID)
-			configmapname := fmt.Sprintf("spark-config-%s-%s-%s", c.Name, SparkRoleMaster, serverID)
-			volumeid := fmt.Sprintf("spark-%s-%s-%s-%v", c.Namespace, c.Name, SparkRoleMaster, serverID)
-			role := SparkRoleMaster
+
+			// 设置i=0时，为master角色，其他都是slave角色
+			if i == 0 {
+				role = SparkRoleMaster
+			}
+
+			name := fmt.Sprintf("spark-%s-%s-%s", c.Name, role, serverID)
+			svcname := fmt.Sprintf("spark-%s-%s-%s", c.Name, role, serverID)
+			configmapname := fmt.Sprintf("spark-config-%s-%s-%s", c.Name, role, serverID)
+			volumeid := fmt.Sprintf("spark-%s-%s-%s-%v", c.Namespace, c.Name, role, serverID)
+
 			yes := true
 			for _, servernode := range c.Status.ServerNodes {
 				if serverID == servernode.ID {

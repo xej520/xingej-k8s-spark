@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	api "bonc.com/kafka-operator/pkg/apis/kafka/v1beta1"
-	"bonc.com/kafka-operator/pkg/utils/retry"
+	api "xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/apis/spark/v1beta1"
+	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/utils/retry"
 
 	"github.com/CodisLabs/codis/pkg/utils/log"
 

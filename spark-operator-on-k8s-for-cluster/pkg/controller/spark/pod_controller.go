@@ -28,18 +28,18 @@ type podControlInterface interface {
 	StartForNode(cluster *api.SparkCluster, status *api.ClusterStatus) (error)
 	DeleteForNode(cluster *api.SparkCluster, status *api.ClusterStatus) (error)
 	ChangeClusterstate(cluster *api.SparkCluster, status *api.ClusterStatus) (error)
-	ListenStatus(c *Controller, threadiness int)
+	ListenStatus(c *Controller, workers int)
 	SendMsg2StatusChan(*status.Updatestatus)
 }
 
 type RealPodControl struct {
-	kubeclient kubernetes.Interface
+	kubeclient  kubernetes.Interface
 	sparkClient sparkop.Interface
 
-	PodLister corelisters.PodLister
+	PodLister     corelisters.PodLister
 	ServiceLister corelisters.ServiceLister
 
-	ClusterUpdater clusterUpdateInterface
+	ClusterUpdater   clusterUpdateInterface
 	ConfigMapControl ConfigMapControlInterface
 
 	UpdateStatusChannel chan *status.Updatestatus
@@ -57,8 +57,11 @@ func NewRealPodControl(client kubernetes.Interface, sparkclient sparkop.Interfac
 }
 
 func (rpc *RealPodControl) CreateForCluster(cluster *api.SparkCluster, status *api.ClusterStatus) (error) {
+	log.Infof("进入创建集群[%s/%s]阶段, 开始更新集群状态到etcd!", cluster.Namespace, cluster.Name)
+
 	//1. 更新集群信息到etcd
 	rpc.ClusterUpdater.UpdateClusterStatus(cluster, status)
+	log.Infof("创建集群[%s/%s]阶段, 更新集群状态到etcd 完成", cluster.Namespace, cluster.Name)
 
 	//2. 安装节点
 	for _, serv := range status.ServerNodes {
@@ -278,7 +281,90 @@ func (rpc *RealPodControl) ChangeClusterstate(cluster *api.SparkCluster, status 
 	return nil
 }
 
-func (rpc *RealPodControl) ListenStatus(c *Controller, threadiness int)  {
+func (rpc *RealPodControl) ListenStatus(c *Controller, workers int) {
+	// 启动workers个线程，专门监听 状态变化
+	for i := 0; i < workers; i++ {
+		go rpc.listenStatusThread(c)
+	}
+}
+
+func (rpc *RealPodControl) SendMsg2StatusChan(statusChan *status.Updatestatus) {
+	rpc.UpdateStatusChannel <- statusChan
+}
+
+//  针对节点操作，更新集群状态，节点状态为waiting
+func updateClusterAndServerStatus(servSpec *api.Server, status *api.ClusterStatus, nodeOperator api.OperatorPhase) {
+
+	servSpec.Status = api.ServerWaiting           //更新节点状态为waiting
+	status.ClusterPhase = api.ClusterPhaseWaiting //集群状态waiting
+
+	servSpec.Operator = nodeOperator
+}
+
+func (rpc *RealPodControl) getPodStatus(ns, name string, operator api.OperatorPhase) v1.PodPhase {
+	var timeout = 1
+
+	// 判断操作类型
+	opt := ""
+	if strings.Contains(string(operator), "Stop") {
+		opt = "Stop"
+	} else if strings.Contains(string(operator), "Delete") {
+		opt = "Delete"
+	} else {
+		opt = string(operator)
+	}
+
+	for {
+		// 查询Pod的状态
+		pod, err := rpc.PodLister.Pods(ns).Get(name)
+
+		switch opt {
+		case "Stop": // 当前操作是 停止操作
+			if errors.IsNotFound(err) {
+				return api.ServerStopped
+			}
+		case "Delete": // 当前操作是 删除操作(节点删除，集群删除)
+			if errors.IsNotFound(err) {
+				return api.ServerDeleted
+			}
+		default:
+			// 针对 启动操作
+			if err == nil { //说明查询到 对应的Pod的信息
+				log.Infof("监听Pod状态阶段---操作类型---[%s]--->Pod的名称[%s]\t, Pod状态:[%s]\t", operator, pod.Name, pod.Status.Phase)
+				condflag := true
+				for _, cond := range pod.Status.Conditions {
+					if cond.Status != v1.ConditionTrue {
+						condflag = false
+					}
+				}
+				if pod.Status.Phase == v1.PodRunning && condflag {
+					return pod.Status.Phase
+				} else if pod.Status.Phase == v1.PodFailed {
+					return pod.Status.Phase
+				}
+			}
+		}
+
+		// 超时机制
+		if timeout > 120 * 5 {
+			fmt.Println("-----获取pod状态阶段 超时结束-----")
+			break //结束循环
+		}
+
+		timeout++
+
+		// 每隔半秒 查询一次pod状态
+		time.Sleep(time.Millisecond * 500)
+	}
+
+	//retry.Retry(60, time.Millisecond*500, func() (bool, error) {
+	//})
+
+	return api.ServerUnknown
+}
+
+// 专门 用于监听状态的线程
+func (rpc *RealPodControl) listenStatusThread(c *Controller) {
 	for {
 		// 不断的从管道中取值
 		updateStatus := <-rpc.UpdateStatusChannel
@@ -343,7 +429,7 @@ func (rpc *RealPodControl) ListenStatus(c *Controller, threadiness int)  {
 					//	server.Status = v1.PodRunning
 					//}
 
-					server.Status =   v1.PodPhase(updateStatus.NodeStatus )
+					server.Status = v1.PodPhase(updateStatus.NodeStatus)
 
 					//修改集群状态
 					rpc.ChangeClusterstate(updateStatus.Cluster, updateStatus.Status)
@@ -359,96 +445,3 @@ func (rpc *RealPodControl) ListenStatus(c *Controller, threadiness int)  {
 
 	}
 }
-
-func (rpc *RealPodControl) SendMsg2StatusChan(statusChan *status.Updatestatus) {
-	rpc.UpdateStatusChannel <- statusChan
-}
-
-//  针对节点操作，更新集群状态，节点状态为waiting
-func updateClusterAndServerStatus(servSpec *api.Server, status *api.ClusterStatus, nodeOperator api.OperatorPhase) {
-
-	servSpec.Status = api.ServerWaiting    //更新节点状态为waiting
-	status.ClusterPhase = api.ClusterPhaseWaiting //集群状态waiting
-
-	servSpec.Operator = nodeOperator
-}
-
-func (rpc *RealPodControl) getPodStatus(ns, name string, operator api.OperatorPhase) v1.PodPhase  {
-	var timeout = 1
-
-	// 判断操作类型
-	opt := ""
-	if strings.Contains(string(operator), "Stop") {
-		opt = "Stop"
-	} else if strings.Contains(string(operator), "Delete") {
-		opt = "Delete"
-	} else {
-		opt = string(operator)
-	}
-
-	for {
-		// 查询Pod的状态
-		pod, err := rpc.PodLister.Pods(ns).Get(name)
-
-		switch opt {
-		case "Stop": // 当前操作是 停止操作
-			if errors.IsNotFound(err) {
-				return api.ServerStopped
-			}
-		case "Delete": // 当前操作是 删除操作(节点删除，集群删除)
-			if errors.IsNotFound(err) {
-				return api.ServerDeleted
-			}
-		default:
-			// 针对 启动操作
-			if err == nil { //说明查询到 对应的Pod的信息
-				fmt.Println("----当前pod的状态是:\t", pod.Status.Phase)
-				condflag := true
-				for _, cond := range pod.Status.Conditions {
-					if cond.Status != v1.ConditionTrue {
-						condflag = false
-					}
-				}
-				if pod.Status.Phase == v1.PodRunning && condflag {
-					return pod.Status.Phase
-				} else if pod.Status.Phase == v1.PodFailed {
-					return pod.Status.Phase
-				}
-			}
-		}
-
-		// 超时机制
-		if timeout > 120*5 {
-			fmt.Println("-----获取pod状态阶段 超时结束-----")
-			break //结束循环
-		}
-
-		timeout++
-
-		// 每隔半秒 查询一次pod状态
-		time.Sleep(time.Millisecond * 500)
-	}
-
-	//retry.Retry(60, time.Millisecond*500, func() (bool, error) {
-	//})
-
-	return api.ServerUnknown
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

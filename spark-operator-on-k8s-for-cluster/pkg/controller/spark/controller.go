@@ -137,7 +137,7 @@ func NewController(
 
 func (c *Controller) addSpark(obj interface{}) {
 	clus := obj.(*api.SparkCluster)
-	log.Infof("Adding sparkcluster %s", clus.GetKey())
+	log.Infof("往队列里插入对象SparkCluster [ %s ]", clus.GetKey())
 
 	c.workqueue.Enqueue(clus)
 }
@@ -150,12 +150,22 @@ func (c *Controller) updateSpark(old, new interface{}) {
 	if newD.DeletionTimestamp != nil {
 		return
 	}
-	// 定义是否有操作，只要操作不一致且操作标志位不能为空，则增加到队列中
-	if !reflect.DeepEqual(oldD.Spec.SparkOperator, newD.Spec.SparkOperator) && newD.Spec.SparkOperator.Operator != "" {
-		log.Infof("Updating sparkcluster %s", oldD.GetKey())
+	
+	// 校验 操作类型是否变化
+	opFlag := !reflect.DeepEqual(oldD.Spec.SparkOperator, newD.Spec.SparkOperator) && newD.Spec.SparkOperator.Operator != ""
+	// 校验 参数是否变化
+	configFlag := !reflect.DeepEqual(oldD.Spec.SparkOperator.Operator, newD.Spec.SparkOperator.Operator) && newD.Spec.SparkOperator.Operator == api.ClusterOperatorPhaseChangeConfig &&
+		!reflect.DeepEqual(oldD.Spec.Config, newD.Spec.Config)
+	// 校验 资源(CPU, memory)是否变化
+	requestsFlag :=!reflect.DeepEqual(oldD.Spec.SparkOperator.Operator, newD.Spec.SparkOperator.Operator) && newD.Spec.SparkOperator.Operator == api.ClusterOperatorPhaseChangeResource &&
+		!reflect.DeepEqual(oldD.Spec.Resources.Requests, newD.Spec.Resources.Requests)
+	// 校验 副本数是否变化(集群个数是否变化)
+	addNodeFlag := !reflect.DeepEqual(oldD.Spec.SparkOperator.Operator, newD.Spec.SparkOperator.Operator) && newD.Spec.SparkOperator.Operator == api.ClusterOperatorPhaseAddNode &&
+		!!reflect.DeepEqual(oldD.Spec.Replicas, newD.Spec.Replicas)
 
+	if  configFlag || requestsFlag || addNodeFlag || opFlag{
+		log.Infof("Updating kafkaCluster:\t%s, optType:\t%s", oldD.GetKey(), newD.Spec.SparkOperator.Operator)
 		c.workqueue.EnqueueAfter(newD, time.Second)
-
 		return
 	}
 }
@@ -224,13 +234,15 @@ func (c *Controller) updatePod(old, cur interface{}) {
 }
 
 func (c *Controller) syncSparkCluster(obj interface{}) error {
+	sparkCluster, ok := obj.(*api.SparkCluster)
 
-	mc, ok := obj.(*api.SparkCluster)
 	if !ok {
 		return fmt.Errorf("expect sparkcluster, got %v", obj)
 	}
 
-	key, _ := cache.DeletionHandlingMetaNamespaceKeyFunc(mc)
+	log.Infof("--->从队列中获取到的对象是: [ %s / %s] 操作类型: [ %s ]\n", sparkCluster.Namespace, sparkCluster.Name, sparkCluster.Spec.Operator)
+
+	key, _ := cache.DeletionHandlingMetaNamespaceKeyFunc(sparkCluster)
 
 	startTime := time.Now()
 	log.Infof("Started syncing sparkcluster %q (%v)", key, startTime)
@@ -239,11 +251,11 @@ func (c *Controller) syncSparkCluster(obj interface{}) error {
 	}()
 
 	// Get the spark resource with this namespace/name
-	clus, err := c.sparkLister.SparkClusters(mc.Namespace).Get(mc.Name)
+	clus, err := c.sparkLister.SparkClusters(sparkCluster.Namespace).Get(sparkCluster.Name)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			if _, ok := c.statusCache[mc.GetKey()]; ok {
-				delete(c.statusCache, mc.GetKey())
+			if _, ok := c.statusCache[sparkCluster.GetKey()]; ok {
+				delete(c.statusCache, sparkCluster.GetKey())
 			}
 			log.Infof("sparkcluster %v has been deleted", key)
 			return nil
@@ -252,13 +264,13 @@ func (c *Controller) syncSparkCluster(obj interface{}) error {
 	}
 
 	// fresh spark
-	if mc.UID != clus.UID {
+	if sparkCluster.UID != clus.UID {
 		//  original spark is gone
 		return nil
 	}
 	// 如果没有删除则开始处理
 	if clus.DeletionTimestamp == nil {
-		clusD := mc.DeepCopy()
+		clusD := sparkCluster.DeepCopy()
 		// 如果出现错误,会重试5次
 		if err := c.SyncSpark(clusD); err != nil {
 			c.recorder.Eventf(clusD, v1.EventTypeWarning, err.Error(),

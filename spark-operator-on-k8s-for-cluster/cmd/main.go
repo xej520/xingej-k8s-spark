@@ -1,22 +1,24 @@
 package main
 
 import (
+	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/utils/signals"
+
+	"fmt"
+	"time"
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/utils/k8sutil"
 	kubeinformers "k8s.io/client-go/informers"
 	"github.com/CodisLabs/codis/pkg/utils/log"
-	"time"
 	sparkInformers "xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/client/informers/externalversions"
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/controller/spark"
-	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/utils/signals"
 )
 
 func main() {
 
 	stopCh := signals.SetupSignalHandler()
 
+	fmt.Println("-----hello")
 	run(stopCh)
 	log.Warn("spark-Operator unreachable，(｡•ˇ‸ˇ•｡)")
-
 }
 
 func run(stopCh <-chan struct{})  {

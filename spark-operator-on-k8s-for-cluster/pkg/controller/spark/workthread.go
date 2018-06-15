@@ -61,7 +61,7 @@ func (c * createNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, s
 			}
 		}
 	}
-
+	log.Info("创建节点阶段:\t创建configMap 成功! [ %s / %s ]", cluster.Namespace, serv.Name)
 	//创建单节点服务
 	if serv.Status == api.ServerWaiting {
 
@@ -96,7 +96,7 @@ func (c * createNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, s
 				}
 			}
 		}
-
+		log.Info("创建节点阶段:\t创建service 成功! [ %s / %s ]", cluster.Namespace, serv.Name)
 		//创建单节点pod
 		if pod, err := rpc.PodLister.Pods(cluster.Namespace).Get(serv.Name); err != nil {
 			if _, err := podfunc.CreatePod(cluster, status, serv.Name); err != nil {
@@ -112,6 +112,7 @@ func (c * createNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, s
 		} else {
 			serv.Status = pod.Status.Phase
 		}
+		log.Info("创建节点阶段:\t创建pod成功! [ %s / %s ]", cluster.Namespace, serv.Name)
 	}
 
 	return true

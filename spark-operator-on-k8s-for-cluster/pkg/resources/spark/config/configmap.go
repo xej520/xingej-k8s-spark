@@ -8,6 +8,7 @@ import (
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/resources"
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/apis/spark"
 	"fmt"
+	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
 type Config struct {
@@ -24,14 +25,14 @@ func NewForCluster(clus *v1beta1.SparkCluster, server *v1beta1.Server) *Config {
 
 func NewConfigMap(clus *v1beta1.SparkCluster, server *v1beta1.Server) *v1.ConfigMap {
 	//	初始化配置
-	//data := map[string]string{}
-	//log.Infof("newSparkcnf:")
-	//data[]
+	data := map[string]string{}
+	log.Infof("newSparkcnf:")
+	data["spark-env.sh"] = fmt.Sprintf("spark-%s-%s-%s", clus.Namespace, clus.Name, server.Name)
 
 	configMap := &v1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConfigMap",
-			APIVersion: "V1",
+			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      resources.GetConfigMapName(clus.Name, string(server.Role), server.ID),
@@ -46,6 +47,7 @@ func NewConfigMap(clus *v1beta1.SparkCluster, server *v1beta1.Server) *v1.Config
 				),
 			},
 		},
+		Data:data,
 	}
 
 	return configMap
@@ -54,4 +56,3 @@ func NewConfigMap(clus *v1beta1.SparkCluster, server *v1beta1.Server) *v1.Config
 func GetConfigMapName(clusterName string, role string, serverId string) string {
 	return fmt.Sprintf("spark-config-%s-%s-%s", clusterName, role, serverId)
 }
-

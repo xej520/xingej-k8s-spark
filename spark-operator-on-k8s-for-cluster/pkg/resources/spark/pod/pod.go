@@ -1,6 +1,7 @@
 package pod
 
 import (
+	defaulterror "errors"
 	api "xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/apis/spark/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -8,11 +9,11 @@ import (
 	"time"
 	"k8s.io/api/core/v1"
 	"fmt"
-	defaulterror "errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/utils/k8sutil"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"encoding/json"
 )
 
 var (
@@ -42,7 +43,6 @@ func Install(cluster *api.SparkCluster, status *api.ClusterStatus, nodename stri
 	return nil
 }
 
-
 //停止节点
 func Stoppod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename string) error {
 	// 删除pod
@@ -62,7 +62,6 @@ func Stoppod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename stri
 	return nil
 }
 
-
 // stopped状态的节点删除
 func DeleteServices(cluster *api.SparkCluster, status *api.ClusterStatus, nodename string) error {
 	// 删除service
@@ -80,7 +79,7 @@ func DeleteServices(cluster *api.SparkCluster, status *api.ClusterStatus, nodena
 // 卸载节点
 func Uninstall(cluster *api.SparkCluster, status *api.ClusterStatus, nodename string) error {
 
-	if  server, ok := status.ServerNodes[nodename]; ok {
+	if server, ok := status.ServerNodes[nodename]; ok {
 
 		if server.Role == api.SparkRoleMaster {
 			// 删除service
@@ -109,14 +108,13 @@ func Uninstall(cluster *api.SparkCluster, status *api.ClusterStatus, nodename st
 	return nil
 }
 
-
 // 创建service
 func CreateService(cluster *api.SparkCluster, status *api.ClusterStatus, nodename string) (*v1.Service, error) {
 
 	labels := GetLabels(cluster.Name, nodename)
 	name := nodename
 
-	var srv =  &v1.Service{}
+	var srv = &v1.Service{}
 
 	if status.ServerNodes[name].Nodeport > 0 {
 		srv = &v1.Service{
@@ -132,7 +130,7 @@ func CreateService(cluster *api.SparkCluster, status *api.ClusterStatus, nodenam
 					{
 						Name:     "spark-client",
 						Protocol: v1.ProtocolTCP,
-						Port:     4444,
+						Port:     7077,
 						NodePort: status.ServerNodes[name].Nodeport,
 					},
 				},
@@ -153,7 +151,7 @@ func CreateService(cluster *api.SparkCluster, status *api.ClusterStatus, nodenam
 					{
 						Name:     "spark-client",
 						Protocol: v1.ProtocolTCP,
-						Port:     4444,
+						Port:     7077,
 					},
 				},
 			},
@@ -173,7 +171,7 @@ func CreateService(cluster *api.SparkCluster, status *api.ClusterStatus, nodenam
 }
 
 // 创建一个spark 实例 pod
-func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename string) (pod *v1.Pod, err error)  {
+func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename string) (pod *v1.Pod, err error) {
 
 	var volumeid string
 	var configmapname string
@@ -205,10 +203,10 @@ func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename st
 					Name:            "spark-server",
 					Image:           cluster.Spec.Image,
 					ImagePullPolicy: v1.PullIfNotPresent,
-					Ports:           []v1.ContainerPort{{ContainerPort: 9092}},
+					Ports:           []v1.ContainerPort{{ContainerPort: 7077}},
 					VolumeMounts: []v1.VolumeMount{
-						{Name: "configdir", MountPath: "/opt/spark/config/"},
-						{Name: volumeid, MountPath: "/opt/spark/logs"},
+						{Name: "configdir", MountPath: "/usr/local/spark/conf/"},
+						{Name: volumeid, MountPath: "/usr/local/spark/logs"},
 					},
 					Resources: v1.ResourceRequirements{
 						Limits: k8sutil.MakeResourceList(spec.Resources.Limits.CPU,
@@ -216,6 +214,7 @@ func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename st
 						Requests: k8sutil.MakeResourceList(spec.Resources.Requests.CPU,
 							spec.Resources.Requests.Memory),
 					},
+					Env: mkEnv(status.ServerNodes[nodename]),
 				},
 			},
 			Volumes: []v1.Volume{{
@@ -225,7 +224,6 @@ func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename st
 						LocalObjectReference: v1.LocalObjectReference{
 							Name: configmapname,
 						},
-
 					},
 				},
 			}},
@@ -239,7 +237,7 @@ func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename st
 									{
 										Key:      "spark-group",
 										Operator: metav1.LabelSelectorOpIn,
-										Values:   []string{fmt.Sprintf("spark--%s-%s", cluster.Namespace, cluster.Name)},
+										Values:   []string{fmt.Sprintf("spark-%s-%s", cluster.Namespace, cluster.Name)},
 									},
 								},
 							},
@@ -254,7 +252,7 @@ func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename st
 		pod.Spec.Containers[0].LivenessProbe = &v1.Probe{
 			Handler: v1.Handler{
 				TCPSocket: &v1.TCPSocketAction{
-					Port: intstr.FromInt(9092),
+					Port: intstr.FromInt(7077),
 				},
 			},
 			InitialDelaySeconds: int32(cluster.Spec.Config.LivenessDelayTimeout),
@@ -266,7 +264,7 @@ func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename st
 		pod.Spec.Containers[0].ReadinessProbe = &v1.Probe{
 			Handler: v1.Handler{
 				TCPSocket: &v1.TCPSocketAction{
-					Port: intstr.FromInt(9092),
+					Port: intstr.FromInt(7077),
 				},
 			},
 			InitialDelaySeconds: int32(cluster.Spec.Config.ReadinessDelayTimeout),
@@ -276,18 +274,41 @@ func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename st
 		}
 	}
 
+	if len(spec.Volume) == 0 {
+		pod.Spec.Volumes = append(pod.Spec.Volumes, k8sutil.MakeEmptyDirVolume(volumeid))
+	} else {
+		// 使用LVM
+		pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{
+			Name: volumeid,
+			VolumeSource: v1.VolumeSource{
+				FlexVolume: &v1.FlexVolumeSource{
+					Driver: "sysoperator.pl/lvm",
+					FSType: "ext4",
+					Options: map[string]string{
+						"volumeID":     volumeid,
+						"size":         spec.Capactity,
+						"volumegroup":  spec.Volume,
+						"mountoptions": "relatime,nobarrier",
+					},
+				},
+			},
+		})
+	}
+
 	// 如果有hostname则绑定，原地重启
 	if servD := status.ServerNodes[nodename]; servD != nil && len(servD.Node) > 0 {
 		pod.Spec.NodeSelector = map[string]string{nodeSelectHostname: servD.Node}
 	}
 
-	k8sutil.SetKafkaVersion(pod, cluster.Spec.Version)
+	k8sutil.SetSparkVersion(pod, cluster.Spec.Version)
+	bytes, _ := json.Marshal(pod)
+	fmt.Println("----------------------------------------------\n", string(bytes))
 
 	if pod, err = k8sutil.Create(cluster.Namespace, pod); err != nil {
 		log.WarnErrorf(err, "create server pod %v", nodename)
 		return nil, err
 	}
-
+	fmt.Println("---------------------2-------------------------")
 	return nil, nil
 }
 
@@ -313,7 +334,6 @@ func AddConditions(status *api.ClusterStatus, condType api.ClusterConditionType,
 	status.Conditions = conditions
 }
 
-
 func GetOwners(cluster *api.SparkCluster) []metav1.OwnerReference {
 	owners := []metav1.OwnerReference{
 		*metav1.NewControllerRef(
@@ -329,10 +349,10 @@ func GetOwners(cluster *api.SparkCluster) []metav1.OwnerReference {
 	return owners
 }
 
-func GetLabels(clusterName , comp string) map[string]string {
+func GetLabels(clusterName, comp string) map[string]string {
 	labels := map[string]string{
 		"cell": clusterName,
-		"app":"spark",
+		"app":  "spark",
 	}
 
 	if comp != "" {
@@ -348,11 +368,17 @@ func GetTerminationGracePeriodSeconds() *int64 {
 	return &defaultTrminationGracePeriodSeconds
 }
 
+func mkEnv(server *api.Server) []v1.EnvVar {
 
+	podEnvs := []v1.EnvVar{
+		//角色，根据角色来启动master进程，或者slave进程
+		{
+			Name: "ROLE", Value: string(server.Role),
+		},
+		{
+			Name: "MASTER", Value: server.Name,
+		},
+	}
 
-
-
-
-
-
-
+	return podEnvs
+}

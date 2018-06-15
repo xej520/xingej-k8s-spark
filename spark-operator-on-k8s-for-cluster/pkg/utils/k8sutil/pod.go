@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"bonc.com/kafka-operator/pkg/utils/retry"
+	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/utils/retry"
 
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"k8s.io/api/core/v1"

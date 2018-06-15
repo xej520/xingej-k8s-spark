@@ -7,7 +7,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"bonc.com/kafka-operator/pkg/utils/constants"
+	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-cluster/pkg/utils/constants"
 )
 
 func TestMain(m *testing.M) {

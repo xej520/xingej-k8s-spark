@@ -1,0 +1,19 @@
+apiVersion: "spark.xingej.com/v1beta1"
+kind: "SparkCluster"
+metadata:
+  name: "xejcluster"
+spec:
+  version: "2.1.0"
+  image: "spark:1.0"
+  healthcheck: false
+  replicas: 2
+  resources:
+    requests:
+      cpu: "0.25"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+  env:
+
+  #volume: "datavg02"
