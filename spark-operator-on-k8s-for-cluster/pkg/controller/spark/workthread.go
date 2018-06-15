@@ -12,18 +12,18 @@ import (
 )
 
 type workthread interface {
-	do( rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool
+	do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool
 }
 
-type createNodeThread struct {}
+type createNodeThread struct{}
 
-type stopNodeThread struct {}
+type stopNodeThread struct{}
 
-type startNodeThread struct {}
+type startNodeThread struct{}
 
-type deleteNodeThread struct {}
+type deleteNodeThread struct{}
 
-func handle(wd workthread, rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server)  {
+func handle(wd workthread, rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) {
 	//每次间隔一秒钟，最多尝试5次
 	for i := 0; i < 5; i++ {
 		if wd.do(rpc, cluster, status, serv) {
@@ -48,7 +48,7 @@ func handle(wd workthread, rpc *RealPodControl, cluster *api.SparkCluster, statu
 }
 
 // 线程---创建单节点
-func (c * createNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool {
+func (c *createNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool {
 	//创建单节点configMap
 	if _, err := rpc.ConfigMapControl.GetForOne(cluster, serv); err != nil {
 		if err = rpc.ConfigMapControl.CreateForOne(cluster, status, serv); err != nil {
@@ -61,42 +61,40 @@ func (c * createNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, s
 			}
 		}
 	}
-	log.Info("创建节点阶段:\t创建configMap 成功! [ %s / %s ]", cluster.Namespace, serv.Name)
+	log.Infof("创建节点阶段:\t创建configMap 成功! [ %s / %s ]", cluster.Namespace, serv.Name)
 	//创建单节点服务
 	if serv.Status == api.ServerWaiting {
 
-		// 只有master角色，需要创建service
-		if serv.Role == api.SparkRoleMaster {
-			//创建单节点svc
-			if svc, err := rpc.ServiceLister.Services(cluster.Namespace).Get(serv.Name); err != nil {
-				if errors.IsNotFound(err) {
-					if svc, err = podfunc.CreateService(cluster, status, serv.Name); err != nil {
-						if !errors.IsAlreadyExists(err) {
-							podfunc.AddConditions(status, api.ClusterConditionReady,
-								v1.ConditionFalse, err.Error(),
-								fmt.Sprintf("Create spark node service %q error", serv.Name))
-							log.WarnErrorf(err, "create spark node service %q error", serv.Name)
-							return false
-						}
-
+		//创建单节点svc
+		if svc, err := rpc.ServiceLister.Services(cluster.Namespace).Get(serv.Name); err != nil {
+			if errors.IsNotFound(err) {
+				if svc, err = podfunc.CreateService(cluster, status, serv.Name); err != nil {
+					if !errors.IsAlreadyExists(err) {
+						podfunc.AddConditions(status, api.ClusterConditionReady,
+							v1.ConditionFalse, err.Error(),
+							fmt.Sprintf("Create spark node service %q error", serv.Name))
+						log.WarnErrorf(err, "create spark node service %q error", serv.Name)
+						return false
 					}
-				} else {
-					log.WarnErrorf(err, "get spark node service %q error", serv.Name)
-					return false
+
 				}
 			} else {
-				if server, ok := status.ServerNodes[serv.Name]; ok {
-					if server.Nodeport == 0 {
-						for _, Ports := range svc.Spec.Ports {
-							if Ports.NodePort != 0 {
-								status.ServerNodes[serv.Name].Nodeport = Ports.NodePort
-							}
+				log.WarnErrorf(err, "get spark node service %q error", serv.Name)
+				return false
+			}
+		} else {
+			if server, ok := status.ServerNodes[serv.Name]; ok {
+				if server.Nodeport == 0 {
+					for _, Ports := range svc.Spec.Ports {
+						if Ports.NodePort != 0 {
+							status.ServerNodes[serv.Name].Nodeport = Ports.NodePort
 						}
 					}
 				}
 			}
 		}
-		log.Info("创建节点阶段:\t创建service 成功! [ %s / %s ]", cluster.Namespace, serv.Name)
+
+		log.Infof("创建节点阶段:\t创建service 成功! [ %s / %s ]", cluster.Namespace, serv.Name)
 		//创建单节点pod
 		if pod, err := rpc.PodLister.Pods(cluster.Namespace).Get(serv.Name); err != nil {
 			if _, err := podfunc.CreatePod(cluster, status, serv.Name); err != nil {
@@ -112,13 +110,13 @@ func (c * createNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, s
 		} else {
 			serv.Status = pod.Status.Phase
 		}
-		log.Info("创建节点阶段:\t创建pod成功! [ %s / %s ]", cluster.Namespace, serv.Name)
+		log.Infof("创建节点阶段:\t创建pod成功! [ %s / %s ]", cluster.Namespace, serv.Name)
 	}
 
 	return true
 }
 
-func (c * stopNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool {
+func (c *stopNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool {
 	//停止单节点服务
 	if serv.Status == api.ServerWaiting {
 		//删除单节点pod
@@ -133,7 +131,7 @@ func (c * stopNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, sta
 	return true
 }
 
-func (c * startNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool {
+func (c *startNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool {
 	//启动单节点服务
 	if serv.Status == api.ServerWaiting {
 		//启动单节点pod
@@ -156,7 +154,7 @@ func (c * startNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, st
 	return true
 }
 
-func (c * deleteNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server)  bool {
+func (c *deleteNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, status *api.ClusterStatus, serv *api.Server) bool {
 
 	//删除单节点服务
 	if serv.Status == api.ServerWaiting {
@@ -177,8 +175,3 @@ func (c * deleteNodeThread) do(rpc *RealPodControl, cluster *api.SparkCluster, s
 
 	return true
 }
-
-
-
-
-
