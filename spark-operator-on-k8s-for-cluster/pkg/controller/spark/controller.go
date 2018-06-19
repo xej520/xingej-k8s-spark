@@ -381,7 +381,7 @@ func (c *Controller) resolveControllerRef(namespace string, controllerRef *metav
 
 //处理异常pod的逻辑
 func handleForExceptionPod(c *Controller, curPod *v1.Pod, sparkC *api.SparkCluster, status *api.ClusterStatus) {
-	if tmpPod := c.abnormalPod[curPod.Name]; tmpPod != nil {
+	if tmpPod := c.abnormalPod[curPod.Name]; tmpPod == nil {
 		c.abnormalPod[curPod.Name] = &timeoutForPod{
 			startTime: time.Now(),
 			endTime:   time.Now(),
