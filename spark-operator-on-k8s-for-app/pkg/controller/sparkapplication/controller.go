@@ -18,6 +18,7 @@ import (
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-app/pkg/apis/spark/v1beta1"
 	"fmt"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"k8s.io/apimachinery/pkg/util/runtime"
 )
 
 var (
@@ -109,9 +110,7 @@ func (c *Controller) onDelete(obj interface{}) {
 }
 
 func (c *Controller) Start(workers int, stopCh <- chan struct{})  error {
-	fmt.Println("Starting the Spark Application controller")
-
-	fmt.Println("-------------cacheSynced---------------:\t",c.cacheSynced())
+	log.Info("Starting the Spark Application controller")
 
 	if !cache.WaitForCacheSync(stopCh, c.cacheSynced) {
 		return fmt.Errorf("timed out waiting for cache to sync")
@@ -119,7 +118,7 @@ func (c *Controller) Start(workers int, stopCh <- chan struct{})  error {
 
 	fmt.Println("Starting thr workers of the SparkApplication controller")
 	for i :=0; i < workers; i++ {
-		fmt.Println("----workers------")
+		log.Info("----workers------")
 	}
 
 	return nil
@@ -136,3 +135,78 @@ func (c *Controller) enqueue(obj interface{})  {
 	c.queue.AddRateLimited(key)
 
 }
+
+func (c *Controller) runWorker()  {
+	
+}
+
+func (c *Controller) processNextItem() bool {
+	key, quit := c.queue.Get()
+	if quit {
+		return false
+	}
+
+	defer c.queue.Done(key)
+
+	err := c.syncSparkApplication(key.(string))
+
+	if err == nil {
+		c.queue.Forget(key)
+		return true
+	}
+
+	runtime.HandleError(fmt.Errorf("failed to sync SparkApplication %q: %v", key, err))
+	c.queue.AddRateLimited(key)
+
+	return true
+}
+
+func (c *Controller) syncSparkApplication(key string) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+
+	if err != nil {
+		return fmt.Errorf("failed to get the namespace and name from key %s: %v", key, err)
+	}
+
+	application, err := c.getSparkApplication(namespace, name)
+
+	if err != nil {
+		return err
+	}
+
+	err = c.createSubmission(application)
+	if err != nil {
+		c.recorder.Eventf(
+			application,
+			apiv1.EventTypeWarning,
+			"SparkApplicationSubmissionCreationFailed",
+			"failed to create a submission for SparkApplication %s: %s",
+			application.Name,
+			err.Error()	)
+
+		return err
+	}
+
+	return nil
+}
+
+func (c *Controller) createSubmission(app *v1beta1.SparkApplication) error {
+
+	return nil
+}
+
+func (c *Controller) getSparkApplication(namespace, name string) (*v1beta1.SparkApplication, error) {
+	return c.lister.SparkApplications(namespace).Get(name)
+}
+
+
+
+
+
+
+
+
+
+
+
+
