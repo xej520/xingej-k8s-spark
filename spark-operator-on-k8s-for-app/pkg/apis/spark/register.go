@@ -1,6 +1,6 @@
 package spark
 
 const (
-	GroupName  = "sparkoperator"
+	GroupName  = "sparkapp.xingej.com"
 	Version = "v1beta1"
 )

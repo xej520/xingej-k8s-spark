@@ -2,8 +2,6 @@ package main
 
 import (
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-app/constants"
-	"log"
-	"fmt"
 	"k8s.io/client-go/tools/clientcmd"
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-app/pkg/controller/sparkapplication"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -16,6 +14,7 @@ import (
 	"syscall"
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-app/pkg/crd"
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-app/pkg/util"
+	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
 func main() {
@@ -29,10 +28,10 @@ func main() {
 	kubeClient, e := clientset.NewForConfig(config)
 
 	if err != nil {
-		log.Println("--->获取K8s的clientset时失败!\n", err)
+		log.Warnf("--->获取K8s的clientset时失败!\n", err)
 	}
 
-	fmt.Println("----获取到k8s的客户端:\t", kubeClient)
+	log.Info("--->获取到k8s的客户端kubeClient:\n", kubeClient)
 
 	//crdClient, e := crdclientset.NewForConfig(config)
 
@@ -42,7 +41,7 @@ func main() {
 		glog.Fatal(err)
 	}
 
-	fmt.Println("----获取ext的客户端:\t", sparkExtClient)
+	log.Info("--->获取ext的客户端:\n", sparkExtClient)
 
 	apiExtensionsClient, err := apiextensionsclient.NewForConfig(config)
 
@@ -50,25 +49,18 @@ func main() {
 		glog.Fatal(err)
 	}
 
-	fmt.Println("----获取apiExtensionsClient的客户端:\t", apiExtensionsClient)
+	log.Info("--->获取apiExtensionsClient的客户端:\t", apiExtensionsClient)
 
 	crd.RegisterCRDForSparkApplication(constants.ENDPOINT, constants.CONFIGPATH)
-
-
-	fmt.Println("----注册CRD:\t")
 
 	factory := crdinformers.NewSharedInformerFactory(sparkExtClient,
 		// resyncPeriod. Every resyncPeriod, all resources in the cache will re-trigger events.
 		// 每隔几秒钟，缓存中的所有资源，都重新激发一下事件
 		time.Duration(15)*time.Second)
 
-	fmt.Println("----注册factory:\t")
-
 	//kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*15)
 
 	//fmt.Println("----获取informerFactory的客户端:\t", kubeInformerFactory)
-
-	fmt.Println("-------启动完成kubeInformerFactory-----")
 
 	controller := sparkapplication.NewController(sparkExtClient, kubeClient, apiExtensionsClient, factory, 6)
 
@@ -79,13 +71,8 @@ func main() {
 
 	//go kubeInformerFactory.Start(stopCh)
 
-
-	fmt.Println("-------1-----")
 	signalCh := make(chan os.Signal, 1)
-	fmt.Println("-------2-----")
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-	fmt.Println("-------3-----")
 	<-signalCh
-	fmt.Println("-------4-----")
 
 }

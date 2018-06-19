@@ -17,6 +17,11 @@ import (
 	apiv1 "k8s.io/api/core/v1"
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-app/pkg/apis/spark/v1beta1"
 	"fmt"
+	"github.com/CodisLabs/codis/pkg/utils/log"
+)
+
+var (
+	keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 )
 
 type Controller struct {
@@ -75,7 +80,6 @@ func newSparkApplicationController(
 	}
 
 	informer := informerFactory.Sparkoperator().V1beta1().SparkApplications()
-	fmt.Println("\n----监听1----->")
 
 	//添加 监听事件
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -84,20 +88,16 @@ func newSparkApplicationController(
 		DeleteFunc: controller.onDelete,
 	})
 
-	fmt.Println("====controller----hasSynced----:\t", informer.Informer().HasSynced())
-
 	controller.cacheSynced = informer.Informer().HasSynced
 	controller.lister = informer.Lister()
-
-	fmt.Println("----监听2----->")
 
 	return controller
 }
 
 func (c *Controller) onAdd(obj interface{}) {
-	fmt.Println("----onAdd---1-->:\t")
 	application := obj.(*v1beta1.SparkApplication)
-	fmt.Println("----onAdd----->:\t", application.Spec)
+	log.Info("----onAdd----->:\t", application.Spec)
+	c.enqueue(obj)
 }
 
 func (c *Controller) onUpdate(oldObj, newObj interface{}) {
@@ -123,4 +123,16 @@ func (c *Controller) Start(workers int, stopCh <- chan struct{})  error {
 	}
 
 	return nil
+}
+
+func (c *Controller) enqueue(obj interface{})  {
+	key, err := keyFunc(obj)
+
+	if err != nil {
+		glog.Errorf("--->failed to get key for %v : %v", obj,  err)
+		return
+	}
+
+	c.queue.AddRateLimited(key)
+
 }
