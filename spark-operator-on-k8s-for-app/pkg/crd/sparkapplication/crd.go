@@ -2,18 +2,18 @@ package sparkapplication
 
 import (
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	"k8s.io/spark-on-k8s-operator/pkg/apis/sparkoperator.k8s.io"
 	"reflect"
 	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-app/pkg/apis/spark/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	"xingej-go/xingej-k8s-spark/spark-operator-on-k8s-for-app/pkg/apis/spark"
 )
 
 //CRD metadata
 const (
-	Plural    = "sparkapplications"
+	Plural    = Singular + "s"
 	Singular  = "sparkapplication"
 	ShortName = "sparkapp"
-	Group     = sparkoperator.GroupName
+	Group     =  spark.GroupName
 	Version   = "v1beta1"
 	FullName  = Plural + "." + Group
 )
@@ -36,7 +36,7 @@ func GetCRDObject() *apiextensionsv1beta1.CustomResourceDefinition {
 				ShortNames: []string{ShortName},
 				Kind:       reflect.TypeOf(v1beta1.SparkApplication{}).Name(),
 			},
-			Validation: getCustomResourceValidation(),
+			//Validation: getCustomResourceValidation(),
 		},
 	}
 
