@@ -27,7 +27,7 @@ func NewForCluster(clus *v1beta1.SparkCluster, server *v1beta1.Server) *Config {
 func NewConfigMap(clus *v1beta1.SparkCluster, server *v1beta1.Server) *v1.ConfigMap {
 	//	初始化配置
 	data := map[string]string{}
-	log.Infof("newSparkcnf:")
+	log.Infof("---------newSparkcnf:---------")
 	data["spark-env.sh"] = MergeConfig(clus.Spec.Config.Sparkcnf, server.Svcname)
 
 	configMap := &v1.ConfigMap{

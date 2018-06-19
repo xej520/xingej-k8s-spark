@@ -206,7 +206,7 @@ func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename st
 					ImagePullPolicy: v1.PullIfNotPresent,
 					Ports:           []v1.ContainerPort{{ContainerPort: 7077}},
 					VolumeMounts: []v1.VolumeMount{
-						{Name: "configdir", MountPath: "/usr/local/spark/conf/spark-env.sh",SubPath: "spark-env.sh"},
+						{Name: "configdir", MountPath: "/usr/local/spark/conf/spark-env.sh", SubPath: "spark-env.sh"},
 						{Name: volumeid, MountPath: "/usr/local/spark/logs"},
 					},
 					Resources: v1.ResourceRequirements{
@@ -215,7 +215,7 @@ func CreatePod(cluster *api.SparkCluster, status *api.ClusterStatus, nodename st
 						Requests: k8sutil.MakeResourceList(spec.Resources.Requests.CPU,
 							spec.Resources.Requests.Memory),
 					},
-					Env: mkEnv(status.ServerNodes[nodename]),
+					Env: mkEnv(status, status.ServerNodes[nodename]),
 				},
 			},
 			Volumes: []v1.Volume{{
@@ -369,11 +369,13 @@ func GetTerminationGracePeriodSeconds() *int64 {
 	return &defaultTrminationGracePeriodSeconds
 }
 
-func mkEnv(server *api.Server) []v1.EnvVar {
-	master := server.Name
+func mkEnv(status *api.ClusterStatus, server *api.Server) []v1.EnvVar {
+	master := ""
 
-	if strings.Contains(master, "slave") {
-		master = strings.Replace(master,"slave", "master", 1)
+	for _, v := range status.ServerNodes {
+		if strings.Contains(v.Name, "master") {
+			master = v.Name
+		}
 	}
 
 	podEnvs := []v1.EnvVar{
